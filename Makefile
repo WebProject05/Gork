@@ -1,10 +1,16 @@
-.PHONY: build run clean
+.PHONY: build run test clean
+
+BINARY_NAME=gork
 
 build:
-	go build -o gork cmd/gork/main.go
+	go build -o $(BINARY_NAME) cmd/gork/main.go
+
+test:
+	go test -v ./internal/...
 
 run: build
-	./gork -c 10 -d 5s https://example.com
+	./$(BINARY_NAME) -c 10 -d 5s https://example.com
 
 clean:
-	rm -f gork
+	go clean
+	rm -f $(BINARY_NAME) $(BINARY_NAME).exe

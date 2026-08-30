@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"gork/internal/benchmark"
 	"gork/internal/cli"
@@ -12,11 +17,18 @@ import (
 func main() {
 	cfg, err := cli.Parse()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing configuration: %v\n", err)
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	summary := benchmark.Run(cfg)
+	// Trap OS interrupt signals (Ctrl+C) for graceful benchmark cancellation
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	summary := benchmark.RunWithContext(ctx, cfg)
 
 	var resultString string
 	if cfg.JSONOutput {
@@ -32,15 +44,13 @@ func main() {
 	// Output routing
 	if cfg.OutFile != "" {
 		if err := os.WriteFile(cfg.OutFile, []byte(resultString), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing to file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error writing to file %s: %v\n", cfg.OutFile, err)
 			os.Exit(1)
 		}
-		// If saving to file, also print standard terminal to stdout to keep user informed 
-		// (unless JSON was requested, then we just wrote JSON to the file).
 		if !cfg.JSONOutput {
-			fmt.Println("Benchmark complete. Results written to", cfg.OutFile)
+			fmt.Printf("Benchmark complete. Results written to %s\n", cfg.OutFile)
 		}
 	} else {
 		fmt.Print(resultString)
 	}
-}
+}

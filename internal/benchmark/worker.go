@@ -1,16 +1,8 @@
-/*
-Instead of thousands of workers fighting over a single sync.Mutex 
-or spamming a channel after every single HTTP request, each 
-worker will keep a local slice of its own results. When the 
-benchmark duration ends, the worker will send its entire batch 
-of results down a channel just once.
-*/
-
-
 package benchmark
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 
@@ -18,38 +10,63 @@ import (
 	"gork/internal/metrics"
 )
 
-// runWorker now collects its own results locally and returns the batch when done.
-func runWorker(ctx context.Context, client *http.Client, builder *httpclient.Builder) []metrics.Result {
-	// Pre-allocate a reasonable capacity to avoid reallocation overhead during the run
-	results := make([]metrics.Result, 0, 1000)
+// runWorker executes requests concurrently and records metrics into a local lock-free collector.
+func runWorker(ctx context.Context, client *http.Client, builder *httpclient.Builder, rateInterval time.Duration) *metrics.Collector {
+	collector := metrics.NewCollector()
+
+	var ticker *time.Ticker
+	if rateInterval > 0 {
+		ticker = time.NewTicker(rateInterval)
+		defer ticker.Stop()
+	}
 
 	for {
-		select {
-		case <-ctx.Done():
-			// Time is up, return the local batch
-			return results
-		default:
-			req, err := builder.Build()
-			if err != nil {
-				results = append(results, metrics.Result{Error: err})
-				continue
+		if ticker != nil {
+			select {
+			case <-ctx.Done():
+				return collector
+			case <-ticker.C:
 			}
-
-			start := time.Now()
-			resp, err := client.Do(req.WithContext(ctx))
-			duration := time.Since(start)
-
-			if err != nil {
-				results = append(results, metrics.Result{Error: err, Latency: duration})
-				continue
+		} else {
+			select {
+			case <-ctx.Done():
+				return collector
+			default:
 			}
-
-			resp.Body.Close()
-
-			results = append(results, metrics.Result{
-				StatusCode: resp.StatusCode,
-				Latency:    duration,
-			})
 		}
+
+		req, err := builder.BuildWithContext(ctx)
+		if err != nil {
+			collector.Record(metrics.Result{Error: err})
+			continue
+		}
+
+		start := time.Now()
+		resp, err := client.Do(req)
+		latency := time.Since(start)
+
+		if err != nil {
+			// If context was canceled or deadline exceeded during request execution,
+			// the benchmark timer has expired. Do not record as a server error.
+			if ctx.Err() != nil {
+				return collector
+			}
+			collector.Record(metrics.Result{
+				Error:   err,
+				Latency: latency,
+			})
+			continue
+		}
+
+		// Drain response body to EOF so the underlying TCP connection can be returned to the pool
+		bytesRead, _ := io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+
+		collector.Record(metrics.Result{
+			StatusCode: resp.StatusCode,
+			Latency:    latency,
+			BytesRead:  bytesRead,
+		})
 	}
 }
+

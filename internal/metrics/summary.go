@@ -1,68 +1,107 @@
 package metrics
 
 import (
-	"sort"
+	"math"
 	"time"
 )
 
-type Summary struct {
-	TotalRequests  int
-	Successful     int
-	Failed         int
-	Duration       time.Duration
-	RequestsPerSec float64
-
-	MinLatency time.Duration
-	AvgLatency time.Duration
-	MaxLatency time.Duration
-	P50Latency time.Duration
-	P95Latency time.Duration
-	P99Latency time.Duration
-
-	StatusCodes map[int]int
+// LatencySummary contains statistical distributions of request latencies.
+type LatencySummary struct {
+	Min    time.Duration `json:"min"`
+	Avg    time.Duration `json:"avg"`
+	Max    time.Duration `json:"max"`
+	StdDev time.Duration `json:"stddev"`
+	P50    time.Duration `json:"p50"`
+	P75    time.Duration `json:"p75"`
+	P90    time.Duration `json:"p90"`
+	P95    time.Duration `json:"p95"`
+	P99    time.Duration `json:"p99"`
+	P999   time.Duration `json:"p99_9"`
 }
 
+// Summary represents the comprehensive benchmark report.
+type Summary struct {
+	TotalRequests  int64         `json:"total_requests"`
+	Successful     int64         `json:"successful"`
+	Failed         int64         `json:"failed"`
+	Duration       time.Duration `json:"duration"`
+	RequestsPerSec float64       `json:"requests_per_sec"`
+	BytesRead      int64         `json:"bytes_read"`
+	BytesPerSec    float64       `json:"bytes_per_sec"`
+
+	Latency     LatencySummary   `json:"latency"`
+	StatusCodes map[int]int64    `json:"status_codes"`
+	Errors      map[string]int64 `json:"errors,omitempty"`
+}
+
+func (c *Collector) latencyCount() int64 {
+	var count int64
+	for i := 0; i < numBuckets; i++ {
+		count += c.Buckets[i]
+	}
+	return count
+}
+
+func (c *Collector) percentile(p float64, totalCount int64) time.Duration {
+	if totalCount == 0 {
+		return 0
+	}
+	target := int64(math.Ceil(float64(totalCount) * p))
+	var count int64
+	for i := 0; i < numBuckets; i++ {
+		count += c.Buckets[i]
+		if count >= target {
+			lat := bucketToLatency(i)
+			if c.MinLatency > 0 && lat < c.MinLatency {
+				return c.MinLatency
+			}
+			if c.MaxLatency > 0 && lat > c.MaxLatency {
+				return c.MaxLatency
+			}
+			return lat
+		}
+	}
+	return c.MaxLatency
+}
+
+// CalculateSummary aggregates collected metrics over the specified test duration.
 func (c *Collector) CalculateSummary(duration time.Duration) *Summary {
 	s := &Summary{
-		TotalRequests: len(c.results),
+		TotalRequests: c.TotalRequests,
+		Successful:    c.Successful,
+		Failed:        c.Failed,
 		Duration:      duration,
-		StatusCodes:   make(map[int]int),
+		BytesRead:     c.BytesRead,
+		StatusCodes:   c.StatusCodes,
+		Errors:        c.Errors,
 	}
 
-	if s.TotalRequests == 0 {
-		return s
+	if duration > 0 {
+		s.RequestsPerSec = float64(s.TotalRequests) / duration.Seconds()
+		s.BytesPerSec = float64(s.BytesRead) / duration.Seconds()
 	}
 
-	s.RequestsPerSec = float64(s.TotalRequests) / duration.Seconds()
+	latCount := c.latencyCount()
+	if latCount > 0 {
+		s.Latency.Min = c.MinLatency
+		s.Latency.Max = c.MaxLatency
+		s.Latency.Avg = time.Duration(c.TotalLatency.Nanoseconds() / latCount)
 
-	var latencies []time.Duration
-	var totalLatency time.Duration
-
-	for _, r := range c.results {
-		if r.Error != nil || r.StatusCode >= 400 {
-			s.Failed++
-		} else {
-			s.Successful++
+		if latCount > 1 {
+			meanNs := float64(c.TotalLatency.Nanoseconds()) / float64(latCount)
+			meanSq := c.SumSqLatency / float64(latCount)
+			variance := meanSq - (meanNs * meanNs)
+			if variance > 0 {
+				s.Latency.StdDev = time.Duration(math.Sqrt(variance))
+			}
 		}
 
-		if r.StatusCode > 0 {
-			s.StatusCodes[r.StatusCode]++
-		}
-
-		if r.Latency > 0 {
-			latencies = append(latencies, r.Latency)
-			totalLatency += r.Latency
-		}
-	}
-	if len(latencies) > 0 {
-		sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
-
-		s.MinLatency = latencies[0]
-		s.MaxLatency = latencies[len(latencies)-1]
-		s.AvgLatency = totalLatency / time.Duration(len(latencies))
-		s.P50Latency = latencies[int(float64(len(latencies))*0.50)]
-		s.P95Latency = latencies[int(float64(len(latencies))*0.95)]
-		s.P99Latency = latencies[int(float64(len(latencies))*0.99)]
+		s.Latency.P50 = c.percentile(0.50, latCount)
+		s.Latency.P75 = c.percentile(0.75, latCount)
+		s.Latency.P90 = c.percentile(0.90, latCount)
+		s.Latency.P95 = c.percentile(0.95, latCount)
+		s.Latency.P99 = c.percentile(0.99, latCount)
+		s.Latency.P999 = c.percentile(0.999, latCount)
 	}
 
 	return s
