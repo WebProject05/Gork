@@ -79,4 +79,3 @@ func BenchmarkCollectorRecord(b *testing.B) {
 		c.Record(res)
 	}
 }
-
