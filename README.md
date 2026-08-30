@@ -8,20 +8,20 @@
 
 ---
 
-## ⚡ Highlights & Key Features
+##  Highlights & Key Features
 
-- **🚀 Ultra-High Throughput & Keep-Alive Pooling**: Fully tuned HTTP/1.1 and HTTP/2 transport with automated response body draining and connection reuse, preventing socket exhaustion and TLS renegotiation bottlenecks.
-- **📊 Constant $O(1)$ Memory HDR Histogram**: Online logarithmic latency histogram binning (1 µs to 100 s with ~1.9% resolution) calculates high-precision percentiles (P50, P75, P90, P95, P99, P99.9) and Standard Deviation (`StdDev`) without allocating millions of in-memory structs or triggering GC pauses.
-- **🔒 Lock-Free Per-Worker Aggregation**: Each worker thread records metrics into an independent collector and merges results in $O(1)$ time upon completion, eliminating lock contention.
-- **⚡ Pre-Parsed Zero-Allocation Request Templates**: Headers and body reader templates are pre-parsed once at startup, eliminating string splitting and repetitive allocations inside the hot request loop.
-- **🛡️ Graceful Interrupt Handling**: Traps `SIGINT`/`SIGTERM` (`Ctrl+C`) to terminate workers cleanly and output accurate partial benchmark statistics.
-- **🎯 QPS Rate Limiting & Warmup**: Control load with target requests-per-second pacing (`-r` / `--rate`) and eliminate cold-start noise using warmup periods (`-w` / `--warmup`).
-- **📑 Dual Output Formats**: Human-friendly terminal table and machine-readable JSON format with sub-millisecond floating-point precision for CI/CD integration.
-- **🔑 Insecure TLS & Custom Hosts**: Benchmark local and staging endpoints with self-signed certificates (`-k` / `--insecure`) and custom `Host` headers.
+- ** Ultra-High Throughput & Keep-Alive Pooling**: Fully tuned HTTP/1.1 and HTTP/2 transport with automated response body draining and connection reuse, preventing socket exhaustion and TLS renegotiation bottlenecks.
+- ** Constant $O(1)$ Memory HDR Histogram**: Online logarithmic latency histogram binning (1 µs to 100 s with ~1.9% resolution) calculates high-precision percentiles (P50, P75, P90, P95, P99, P99.9) and Standard Deviation (`StdDev`) without allocating millions of in-memory structs or triggering GC pauses.
+- ** Lock-Free Per-Worker Aggregation**: Each worker thread records metrics into an independent collector and merges results in $O(1)$ time upon completion, eliminating lock contention.
+- ** Pre-Parsed Zero-Allocation Request Templates**: Headers and body reader templates are pre-parsed once at startup, eliminating string splitting and repetitive allocations inside the hot request loop.
+- ** Graceful Interrupt Handling**: Traps `SIGINT`/`SIGTERM` (`Ctrl+C`) to terminate workers cleanly and output accurate partial benchmark statistics.
+- ** QPS Rate Limiting & Warmup**: Control load with target requests-per-second pacing (`-r` / `--rate`) and eliminate cold-start noise using warmup periods (`-w` / `--warmup`).
+- ** Dual Output Formats**: Human-friendly terminal table and machine-readable JSON format with sub-millisecond floating-point precision for CI/CD integration.
+- ** Insecure TLS & Custom Hosts**: Benchmark local and staging endpoints with self-signed certificates (`-k` / `--insecure`) and custom `Host` headers.
 
 ---
 
-## 📦 Installation
+##  Installation
 
 ### From Source (Go 1.23+)
 
@@ -45,7 +45,7 @@ go install ./cmd/gork
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Basic Benchmark
 Run a 10-second benchmark against an endpoint using 2 worker threads and 50 concurrent connections:
@@ -98,7 +98,7 @@ gork -c 50 -d 20s --json -o benchmark_results.json https://api.example.com
 
 ---
 
-## ⚙️ CLI Reference
+##  CLI Reference
 
 ```
 Usage:
@@ -127,7 +127,7 @@ Usage:
 
 ---
 
-## 📊 Output Formats
+##  Output Formats
 
 ### Terminal Output
 ```
@@ -205,7 +205,7 @@ Status Codes:
 
 ---
 
-## 🏗️ Architecture & Internal Design
+##  Architecture & Internal Design
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -247,7 +247,7 @@ Status Codes:
 
 ---
 
-## 🧪 Development & Testing
+##  Development & Testing
 
 Run all unit and integration tests:
 
@@ -263,6 +263,6 @@ go test -bench=. -benchmem ./internal/metrics
 
 ---
 
-## 📄 License
+##  License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
