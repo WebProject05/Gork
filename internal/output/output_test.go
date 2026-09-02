@@ -39,6 +39,39 @@ func TestPrintTerminal(t *testing.T) {
 			P99:    10 * time.Millisecond,
 			P999:   30 * time.Millisecond,
 		},
+		Phases: metrics.LatencyPhaseSummary{
+			DNS:     metrics.PhaseSummary{Min: 100 * time.Microsecond, Avg: 1 * time.Millisecond, Max: 5 * time.Millisecond},
+			TCP:     metrics.PhaseSummary{Min: 200 * time.Microsecond, Avg: 2 * time.Millisecond, Max: 8 * time.Millisecond},
+			TLS:     metrics.PhaseSummary{Min: 500 * time.Microsecond, Avg: 3 * time.Millisecond, Max: 10 * time.Millisecond},
+			TTFB:    metrics.PhaseSummary{Min: 1 * time.Millisecond, Avg: 5 * time.Millisecond, Max: 25 * time.Millisecond},
+			Content: metrics.PhaseSummary{Min: 100 * time.Microsecond, Avg: 1 * time.Millisecond, Max: 6 * time.Millisecond},
+		},
+		Connections: metrics.ConnectionSummary{
+			TotalAttempts: 1000,
+			Reused:        950,
+			New:           50,
+			ReusedPct:     95.0,
+		},
+		Transfer: metrics.TransferSummary{
+			BytesSent:    150000,
+			BytesRead:    1024000,
+			TotalBytes:   1174000,
+			UploadRate:   30000,
+			DownloadRate: 204800,
+			MinBodyBytes: 500,
+			AvgBodyBytes: 1024,
+			MaxBodyBytes: 2048,
+		},
+		Availability: metrics.AvailabilitySummary{
+			SuccessRate: 98.0,
+			ErrorRate:   2.0,
+			Count2xx:    980,
+			Count5xx:    20,
+		},
+		Stages: []metrics.StageSummary{
+			{Name: "Stage 1", Duration: 2 * time.Second, Concurrency: "10", Requests: 400, RPS: 200.0, AvgLatency: 2 * time.Millisecond, P95Latency: 4 * time.Millisecond, Errors: 5},
+			{Name: "Stage 2", Duration: 3 * time.Second, Concurrency: "20", Requests: 600, RPS: 200.0, AvgLatency: 2 * time.Millisecond, P95Latency: 5 * time.Millisecond, Errors: 15},
+		},
 		StatusCodes: map[int]int64{
 			200: 980,
 			500: 20,
@@ -53,11 +86,23 @@ func TestPrintTerminal(t *testing.T) {
 	if !strings.Contains(out, "Running 5s test @ http://example.com/api") {
 		t.Errorf("expected header text in terminal output")
 	}
-	if !strings.Contains(out, "Latency Statistics:") {
-		t.Errorf("expected Latency Statistics section")
+	if !strings.Contains(out, "Stage Progression:") {
+		t.Errorf("expected Stage Progression section")
 	}
-	if !strings.Contains(out, "Requests/sec:  200.00") {
-		t.Errorf("expected requests/sec formatting")
+	if !strings.Contains(out, "HTTP Lifecycle Phase Breakdown:") {
+		t.Errorf("expected HTTP Lifecycle Phase Breakdown section")
+	}
+	if !strings.Contains(out, "Connection & Keep-Alive Health:") {
+		t.Errorf("expected Connection & Keep-Alive Health section")
+	}
+	if !strings.Contains(out, "Data Transfer & Throughput:") {
+		t.Errorf("expected Data Transfer & Throughput section")
+	}
+	if !strings.Contains(out, "Requests & Availability:") {
+		t.Errorf("expected Requests & Availability section")
+	}
+	if !strings.Contains(out, "Success Rate:  98.00%") {
+		t.Errorf("expected success rate formatting")
 	}
 	if !strings.Contains(out, "[200 OK]: 980") {
 		t.Errorf("expected 200 OK status code formatting")

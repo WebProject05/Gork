@@ -61,4 +61,15 @@ func TestCalculateSummary(t *testing.T) {
 	if summary.Latency.P99 < 95*time.Millisecond || summary.Latency.P99 > 100*time.Millisecond {
 		t.Errorf("expected P99 ~99ms, got %v", summary.Latency.P99)
 	}
+
+	// Availability & Transfer
+	if summary.Availability.SuccessRate != 100.0 {
+		t.Errorf("expected 100%% success rate, got %f", summary.Availability.SuccessRate)
+	}
+	if summary.Availability.Count2xx != 100 {
+		t.Errorf("expected 100 2xx responses, got %d", summary.Availability.Count2xx)
+	}
+	if summary.Transfer.BytesRead != 100000 {
+		t.Errorf("expected 100000 download bytes, got %d", summary.Transfer.BytesRead)
+	}
 }

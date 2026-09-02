@@ -87,3 +87,64 @@ func TestBenchmarkRunWithContextCancellation(t *testing.T) {
 		t.Fatal("expected non-nil summary on cancellation")
 	}
 }
+
+func TestBenchmarkRampingStages(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "pong")
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:     server.URL,
+		Threads: 2,
+		Stages: []config.StageConfig{
+			{Name: "Ramp", Duration: 200 * time.Millisecond, StartConns: 1, TargetConns: 5},
+			{Name: "Hold", Duration: 200 * time.Millisecond, StartConns: 5, TargetConns: 5},
+		},
+		Timeout: 1 * time.Second,
+		Method:  "GET",
+	}
+
+	summary := Run(cfg)
+	if summary.TotalRequests == 0 {
+		t.Fatal("expected requests in staged run")
+	}
+	if len(summary.Stages) != 2 {
+		t.Fatalf("expected 2 stage summaries, got %d", len(summary.Stages))
+	}
+	if summary.Stages[0].Name != "Ramp" || summary.Stages[1].Name != "Hold" {
+		t.Errorf("unexpected stage names: %s, %s", summary.Stages[0].Name, summary.Stages[1].Name)
+	}
+}
+
+func TestBenchmarkStepLoadBreakpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(20 * time.Millisecond) // Artificial latency
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		URL:          server.URL,
+		Threads:      1,
+		StepLoad:     true,
+		StepConns:    2,
+		StepDuration: 100 * time.Millisecond,
+		MaxLatency:   10 * time.Millisecond, // Lower than the 20ms mock server sleep
+		MaxConns:     10,
+		Timeout:      1 * time.Second,
+		Method:       "GET",
+	}
+
+	summary := Run(cfg)
+	if summary.Breakpoint == nil {
+		t.Fatal("expected breakpoint triggered")
+	}
+	if !summary.Breakpoint.Triggered {
+		t.Errorf("expected Breakpoint.Triggered true")
+	}
+	if summary.Breakpoint.BreakingConns != 2 {
+		t.Errorf("expected breaking conns 2, got %d", summary.Breakpoint.BreakingConns)
+	}
+}
